@@ -1,0 +1,23 @@
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Session data (JANGAN di-push ke GitHub!)
+session/
+auth/
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
