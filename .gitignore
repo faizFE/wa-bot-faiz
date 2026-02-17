@@ -5,6 +5,7 @@ yarn-error.log
 
 # Session data (JANGAN di-push ke GitHub!)
 session/
+session_backup*/
 auth/
 
 # Environment variables
