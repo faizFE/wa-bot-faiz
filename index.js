@@ -14,9 +14,20 @@ const axios = require("axios")
 // ====== BOT PUBLIK ======
 // Semua orang yang chat ke nomor bot ini bisa pakai!
 
-// ====== FUNCTION BRAT ======
-const sharp = require("sharp")
-const { createCanvas } = require("canvas")
+// ====== FUNCTION BRAT (Optional Dependencies) ======
+// sharp dan canvas tidak wajib install (untuk Termux)
+let sharp = null
+let createCanvas = null
+
+try {
+  sharp = require("sharp")
+  const canvas = require("canvas")
+  createCanvas = canvas.createCanvas
+  console.log("✅ Sharp dan Canvas tersedia - fitur .brat dan .bratvid aktif")
+} catch (err) {
+  console.log("⚠️  Sharp/Canvas tidak tersedia - fitur .brat dan .bratvid dinonaktifkan")
+  console.log("   Untuk mengaktifkan: npm install sharp canvas")
+}
 
 async function textToSticker(text) {
   // Validasi panjang teks
@@ -375,6 +386,13 @@ async function startBot() {
 
     // ===== BRAT =====
     if (text.toLowerCase().startsWith(".brat ")) {
+      // Cek apakah sharp dan canvas tersedia
+      if (!sharp || !createCanvas) {
+        return sock.sendMessage(from, {
+          text: "⚠️ Fitur .brat tidak tersedia\n\nLibrary sharp/canvas tidak terinstall (untuk hemat resource di Termux).\n\nUntuk mengaktifkan di PC:\nnpm install sharp canvas"
+        })
+      }
+
       try {
         const input = text.slice(6).trim()
 
@@ -406,6 +424,13 @@ async function startBot() {
 
     // ===== BRATVID (Animated Sticker) =====
     if (text.toLowerCase().startsWith(".bratvid ")) {
+      // Cek apakah sharp dan canvas tersedia
+      if (!sharp || !createCanvas) {
+        return sock.sendMessage(from, {
+          text: "⚠️ Fitur .bratvid tidak tersedia\n\nLibrary sharp/canvas tidak terinstall (untuk hemat resource di Termux).\n\nUntuk mengaktifkan di PC:\nnpm install sharp canvas"
+        })
+      }
+
       try {
         const input = text.slice(9).trim()
 
