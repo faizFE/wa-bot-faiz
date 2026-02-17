@@ -10,9 +10,223 @@ const {
 } = require("@whiskeysockets/baileys")
 
 const axios = require("axios")
+const sharp = require("sharp")
+const { createCanvas } = require("canvas")
 
 // ====== BOT PUBLIK ======
 // Semua orang yang chat ke nomor bot ini bisa pakai!
+
+// ====== FUNCTION BRAT ======
+async function textToSticker(text) {
+  const minLength = 1
+  const maxLength = 100
+  
+  if (!text || text.trim().length < minLength) {
+    throw new Error(`Teks minimal ${minLength} karakter`)
+  }
+  
+  if (text.length > maxLength) {
+    throw new Error(`Teks maksimal ${maxLength} karakter`)
+  }
+
+  const width = 512
+  const height = 512
+
+  const canvas = createCanvas(width, height)
+  const ctx = canvas.getContext("2d")
+
+  ctx.fillStyle = "#ffffff"
+  ctx.fillRect(0, 0, width, height)
+
+  let fontSize
+  if (text.length <= 10) {
+    fontSize = 100
+  } else if (text.length <= 20) {
+    fontSize = 65
+  } else {
+    fontSize = 50
+  }
+
+  ctx.fillStyle = "#000000"
+  ctx.font = `bold ${fontSize}px Arial`
+  ctx.textAlign = "center"
+  ctx.textBaseline = "top"
+
+  const maxWidth = width - 40
+  const lineHeight = fontSize * 1.2
+  const words = text.split(" ")
+  const lines = []
+  let currentLine = words[0]
+
+  for (let i = 1; i < words.length; i++) {
+    const testLine = currentLine + " " + words[i]
+    const metrics = ctx.measureText(testLine)
+    
+    if (metrics.width > maxWidth) {
+      lines.push(currentLine)
+      currentLine = words[i]
+    } else {
+      currentLine = testLine
+    }
+  }
+  lines.push(currentLine)
+
+  const totalHeight = lines.length * lineHeight
+  let y = (height - totalHeight) / 2
+
+  for (let line of lines) {
+    ctx.fillText(line, width / 2, y)
+    y += lineHeight
+  }
+
+  const pngBuffer = canvas.toBuffer("image/png")
+  const webpBuffer = await sharp(pngBuffer).webp().toBuffer()
+  return webpBuffer
+}
+
+// ====== FUNCTION BRATVID ======
+const fs = require("fs")
+const path = require("path")
+const ffmpeg = require("fluent-ffmpeg")
+const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path
+ffmpeg.setFfmpegPath(ffmpegPath)
+
+async function textToAnimatedSticker(text) {
+  const minLength = 1
+  const maxLength = 100
+  
+  if (!text || text.trim().length < minLength) {
+    throw new Error(`Teks minimal ${minLength} karakter`)
+  }
+  
+  if (text.length > maxLength) {
+    throw new Error(`Teks maksimal ${maxLength} karakter untuk animasi`)
+  }
+
+  const width = 512
+  const height = 512
+  const fps = 15
+  const tempDir = path.join(__dirname, "temp_frames")
+  
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true })
+  }
+
+  try {
+    const frames = []
+    
+    for (let i = 0; i <= text.length; i++) {
+      const currentText = text.substring(0, i)
+      const canvas = createCanvas(width, height)
+      const ctx = canvas.getContext("2d")
+
+      ctx.fillStyle = "#ffffff"
+      ctx.fillRect(0, 0, width, height)
+
+      let fontSize
+      if (text.length <= 10) {
+        fontSize = 100
+      } else if (text.length <= 20) {
+        fontSize = 65
+      } else if (text.length <= 30) {
+        fontSize = 50
+      } else if (text.length <= 50) {
+        fontSize = 40
+      } else if (text.length <= 75) {
+        fontSize = 32
+      } else {
+        fontSize = 28
+      }
+
+      ctx.fillStyle = "#000000"
+      ctx.font = `bold ${fontSize}px Arial`
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+
+      if (currentText) {
+        const displayText = i < text.length ? currentText + "|" : currentText
+        const maxWidth = width - 40
+        const lineHeight = fontSize * 1.2
+        const words = displayText.split(" ")
+        const lines = []
+        let currentLine = words[0] || ""
+
+        for (let j = 1; j < words.length; j++) {
+          const testLine = currentLine + " " + words[j]
+          const metrics = ctx.measureText(testLine)
+          
+          if (metrics.width > maxWidth) {
+            lines.push(currentLine)
+            currentLine = words[j]
+          } else {
+            currentLine = testLine
+          }
+        }
+        lines.push(currentLine)
+
+        const totalHeight = lines.length * lineHeight
+        let y = (height - totalHeight) / 2
+
+        for (let line of lines) {
+          ctx.fillText(line, width / 2, y)
+          y += lineHeight
+        }
+      }
+
+      const framePath = path.join(tempDir, `frame_${String(i).padStart(4, "0")}.png`)
+      const buffer = canvas.toBuffer("image/png")
+      fs.writeFileSync(framePath, buffer)
+      frames.push(framePath)
+    }
+
+    const lastFrame = frames[frames.length - 1]
+    for (let i = 0; i < 15; i++) {
+      const holdPath = path.join(tempDir, `frame_${String(text.length + 1 + i).padStart(4, "0")}.png`)
+      fs.copyFileSync(lastFrame, holdPath)
+    }
+
+    const outputWebp = path.join(__dirname, `bratvid_${Date.now()}.webp`)
+    
+    await new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(path.join(tempDir, "frame_%04d.png"))
+        .inputFPS(fps)
+        .outputOptions([
+          "-vcodec libwebp",
+          "-vf scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:-1:-1:color=white",
+          "-loop 0",
+          "-preset default",
+          "-an",
+          "-vsync 0"
+        ])
+        .toFormat("webp")
+        .save(outputWebp)
+        .on("end", resolve)
+        .on("error", reject)
+    })
+
+    const webpBuffer = fs.readFileSync(outputWebp)
+    
+    fs.readdirSync(tempDir).forEach(file => {
+      fs.unlinkSync(path.join(tempDir, file))
+    })
+    fs.rmdirSync(tempDir)
+    if (fs.existsSync(outputWebp)) fs.unlinkSync(outputWebp)
+
+    return webpBuffer
+
+  } catch (error) {
+    if (fs.existsSync(tempDir)) {
+      try {
+        fs.readdirSync(tempDir).forEach(file => {
+          try { fs.unlinkSync(path.join(tempDir, file)) } catch {}
+        })
+        fs.rmdirSync(tempDir)
+      } catch {}
+    }
+    throw error
+  }
+}
 
 
 async function startBot() {
@@ -128,6 +342,131 @@ async function startBot() {
     // ===== PING =====
     if (text.toLowerCase() === ".ping") {
       await sock.sendMessage(from, { text: "Halo aku faizbot ada Yang bisa saya bantu?" })
+    }
+
+    // ===== BRAT =====
+    if (text.toLowerCase().startsWith(".brat ")) {
+      try {
+        const input = text.slice(6).trim()
+
+        if (!input) {
+          return sock.sendMessage(from, {
+            text: "❌ Contoh: .brat halo dunia"
+          })
+        }
+
+        console.log("🎨 Membuat sticker:", input)
+        await sock.sendMessage(from, { text: "⏳ Membuat sticker..." })
+        
+        const stickerBuffer = await textToSticker(input)
+
+        await sock.sendMessage(from, {
+          sticker: stickerBuffer
+        })
+        
+        console.log("✅ Sticker berhasil dikirim")
+
+      } catch (err) {
+        console.error("❌ ERROR BRAT:", err.message)
+        console.error("Stack:", err.stack)
+        await sock.sendMessage(from, {
+          text: `❌ Sticker error: ${err.message}`
+        })
+      }
+    }
+
+    // ===== BRATVID =====
+    if (text.toLowerCase().startsWith(".bratvid ")) {
+      try {
+        const input = text.slice(9).trim()
+
+        if (!input) {
+          return sock.sendMessage(from, {
+            text: "❌ Contoh: .bratvid halo dunia"
+          })
+        }
+
+        console.log("🎬 Membuat sticker animasi:", input)
+        await sock.sendMessage(from, { text: "⏳ Membuat sticker animasi... (tunggu sebentar)" })
+        
+        const stickerBuffer = await textToAnimatedSticker(input)
+
+        await sock.sendMessage(from, {
+          sticker: stickerBuffer
+        })
+        
+        console.log("✅ Sticker animasi berhasil dikirim")
+
+      } catch (err) {
+        console.error("❌ ERROR BRATVID:", err.message)
+        console.error("Stack:", err.stack)
+        await sock.sendMessage(from, {
+          text: `❌ Sticker animasi error: ${err.message}`
+        })
+      }
+    }
+
+    // ===== STC (Image to Sticker) =====
+    if (text.toLowerCase() === ".stc") {
+      try {
+        const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage
+        
+        if (!quotedMsg) {
+          return sock.sendMessage(from, {
+            text: "❌ Reply foto dengan .stc untuk jadikan sticker"
+          })
+        }
+
+        const imageMessage = quotedMsg.imageMessage
+        
+        if (!imageMessage) {
+          return sock.sendMessage(from, {
+            text: "❌ Pesan yang di-reply harus foto"
+          })
+        }
+
+        console.log("🖼️ Converting image to sticker...")
+        await sock.sendMessage(from, { text: "⏳ Membuat sticker..." })
+
+        const quotedKey = msg.message.extendedTextMessage.contextInfo
+
+        const mediaMsg = {
+          key: {
+            remoteJid: from,
+            id: quotedKey.stanzaId,
+            participant: quotedKey.participant
+          },
+          message: quotedMsg
+        }
+
+        console.log("📥 Downloading image...")
+        const buffer = await downloadMediaMessage(mediaMsg, 'buffer', {})
+        console.log(`✅ Downloaded ${buffer.length} bytes`)
+
+        console.log("🔄 Converting to WebP sticker format...")
+        const stickerBuffer = await sharp(buffer)
+          .resize(512, 512, {
+            fit: 'contain',
+            background: { r: 0, g: 0, b: 0, alpha: 0 }
+          })
+          .webp()
+          .toBuffer()
+
+        console.log(`✅ Sticker created: ${stickerBuffer.length} bytes`)
+
+        await sock.sendMessage(from, {
+          sticker: stickerBuffer
+        })
+
+        console.log("✅ Sticker berhasil dikirim")
+
+      } catch (err) {
+        console.error("❌ ERROR STC:", err.message)
+        console.error("Stack:", err.stack)
+        await sock.sendMessage(from, {
+          text: `❌ Gagal membuat sticker: ${err.message}`
+        })
+      }
     }
 
     // ===== OPEN (View Once Revealer) =====
