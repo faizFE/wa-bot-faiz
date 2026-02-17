@@ -2,35 +2,25 @@ module.exports = async (sock, msg, args) => {
     await sock.sendMessage(msg.key.remoteJid, {
         text: `
 ╭───「 MENU BOT 」
-│ .menu
-│ .ping
-│ .brat teks
-│ .bratvid teks
-│ .stc (reply foto)
-│ .open (reply view once)
+│ .menu - Lihat daftar command
+│ .ping - Test bot
+│ .open - Buka view once
 ╰────────────
 
-📋 Menu = Lihat Command
+📋 .menu
 Tampilkan daftar semua command bot
 
-🏓 Ping = Test Bot
+🏓 .ping
 Bot akan jawab "Halo aku Faizbot ada yang bisa saya bantu?"
 
-✨ Brat = Text Sticker
-Buat sticker dari teks (background putih)
-Contoh: .brat hello world
+🔓 .open (reply view once)
+Buka foto/video view once yang cuma bisa dilihat 1x
+Reply pesan view once dengan .open
+Bot akan kirim ulang jadi foto/video biasa!
 
-🎬 Bratvid = Animated Text Sticker
-Sticker gerak dengan teks muncul satu-satu!
-(Max 100 karakter)
-
-🖼️ STC = Image to Sticker
-Reply foto dengan .stc
-Otomatis jadi sticker!
-
-🔓 Open = View Once Revealer
-Reply foto/video 1x lihat dengan .open
-Bot akan kirim ulang jadi foto biasa!
+────────────
+🤖 Bot optimized untuk Termux
+📱 Ringan dan stabil di HP
         `
     })
 }
